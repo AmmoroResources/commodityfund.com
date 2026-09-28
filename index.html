@@ -355,7 +355,7 @@
             <button class="btn btn-primary" type="submit">Request access</button>
             <span class="form-note" id="form-msg" role="status"></span>
           </div>
-          <div class="full ok" id="ok">Thank you. Your email app should now open with your request filled in. Send it and we'll be in touch.</div>
+          <div class="full ok" id="ok" role="status"></div>
         </form>
       </div>
     </div>
@@ -366,7 +366,7 @@
   <div class="wrap">
     <div class="top">
       <a class="logo" href="#top">Commodity<span style="color:var(--brass-2)">Fund</span></a>
-      <span>© <span id="yr">2026</span> CommodityFund. All rights reserved.</span>
+      <span><a href="mailto:amir@ammoro.com" style="color:#c8ced4">amir@ammoro.com</a> &nbsp;·&nbsp; © <span id="yr">2026</span> CommodityFund. All rights reserved.</span>
     </div>
     <div class="legal">
       <p><strong>Important information.</strong> This website is for information only. It is not an offer to sell, or a solicitation of an offer to buy, any security or financial instrument in any jurisdiction. Any participation will be offered only to eligible investors under the relevant offering documents, and only where permitted by applicable law. [Draft: add the name of the regulated entity, its licence or registration details, and its registered address.]</p>
@@ -389,17 +389,31 @@
     }));
   })();
 
-  // Access form -> mailto (swap for a real form backend before launch)
+  // Access form -> emailed to CONTACT via FormSubmit; falls back to the visitor's mail app
   (function(){
-    const CONTACT='invest@commodityfund.com'; // TODO confirm inbox
-    const form=document.getElementById('req'), msg=document.getElementById('form-msg');
-    form.addEventListener('submit',e=>{
+    const CONTACT='amir@ammoro.com';
+    const form=document.getElementById('req'), msg=document.getElementById('form-msg'), ok=document.getElementById('ok');
+    const btn=form.querySelector('button[type=submit]');
+    form.addEventListener('submit',async e=>{
       e.preventDefault();
       if(!form.checkValidity()){msg.textContent='Please fill in the required fields and tick the consent box.';form.reportValidity();return;}
       const d=new FormData(form);
+      const subject='CommodityFund access request: '+d.get('type');
       const body=`Name: ${d.get('name')}\nEmail: ${d.get('email')}\nCompany: ${d.get('company')||'-'}\nCountry: ${d.get('country')}\nType: ${d.get('type')}\n\n${d.get('message')||''}`;
-      location.href=`mailto:${CONTACT}?subject=${encodeURIComponent('CommodityFund access request: '+d.get('type'))}&body=${encodeURIComponent(body)}`;
-      msg.textContent=''; document.getElementById('ok').style.display='block';
+      btn.disabled=true; msg.textContent='Sending…';
+      try{
+        const r=await fetch('https://formsubmit.co/ajax/'+CONTACT,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify({_subject:subject,_replyto:d.get('email'),_template:'table',_captcha:'false',
+            Name:d.get('name'),Email:d.get('email'),Company:d.get('company')||'-',Country:d.get('country'),Type:d.get('type'),Message:d.get('message')||'-'})});
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok||String(j.success)!=='true') throw new Error(j.message||('HTTP '+r.status));
+        msg.textContent=''; ok.textContent='Thank you. Your request has been received and we will be in touch shortly.'; ok.style.display='block'; form.reset();
+      }catch(err){
+        msg.textContent='';
+        ok.innerHTML='We could not send your request automatically. Your email app will open with it filled in. You can also write to us directly at <a href="mailto:'+CONTACT+'">'+CONTACT+'</a>.';
+        ok.style.display='block';
+        location.href=`mailto:${CONTACT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }finally{btn.disabled=false;}
     });
     document.getElementById('yr').textContent=new Date().getFullYear();
   })();
